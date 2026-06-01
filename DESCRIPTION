@@ -1,0 +1,42 @@
+Package: animalreflect
+Title: Integration of 3D Animal Models with Hyperspectral Imaging and Solar Geometry
+Version: 0.1.0
+Authors@R: 
+    person("Your", "Name", email = "you@example.com", role = c("aut", "cre"))
+Description: Integrates 3D animal models (OBJ format) with hyperspectral images (SPE format) 
+    to extract projection surfaces based on solar angles, and retrieves reflectance data 
+    on specific wavebands. Supports time-varying solar position calculations and outputs 
+    projection surfaces as GeoTIFF files.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen2: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Depends:
+    R (>= 4.1)
+Imports:
+    rgl,
+    Rcpp,
+    geometry,
+    raster,
+    terra,
+    sf,
+    EBImage,
+    R.matlab,
+    lpSolve,
+    sp,
+    methods,
+    utils,
+    graphics,
+    stats,
+    lubridate,
+    maptools
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+URL: https://github.com/mayinsitan1/animalreflect
+BugReports: https://github.com/mayinsitan1/animalreflect/issues
