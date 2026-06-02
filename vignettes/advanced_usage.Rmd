@@ -1,0 +1,510 @@
+---
+title: "Advanced Usage and Case Studies"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Advanced Usage and Case Studies}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Advanced Usage and Case Studies
+
+## Case Study 1: Comparing Animal Coloration Across Lighting Conditions
+
+This case study demonstrates how to analyze how animal coloration appears under different solar conditions.
+
+### Problem
+Biologists want to understand how an animal's reflectance properties vary with sun angle, which is important for understanding predator-prey interactions and habitat selection.
+
+### Solution
+
+```r
+library(animalreflect)
+
+# Load model and hyperspectral data
+model <- load_obj_model("bird_model.obj")
+hyper_data <- load_hyperspectral_spe("bird_surface.spe")
+
+# Define time points throughout a day
+times <- seq(6, 18, by = 1)  # 6 AM to 6 PM
+locations <- list(
+  list(date = "2026-06-21", name = "Summer Solstice"),
+  list(date = "2026-03-21", name = "Spring Equinox"),
+  list(date = "2026-12-21", name = "Winter Solstice")
+)
+
+# Storage for results
+results_list <- list()
+
+for (loc in locations) {
+  results_df <- data.frame(
+    time = times,
+    elevation = numeric(length(times)),
+    illuminated_area = numeric(length(times)),
+    mean_reflectance_550 = numeric(length(times)),
+    mean_reflectance_850 = numeric(length(times))
+  )
+  
+  for (i, hour in enumerate(times)) {
+    time_str <- sprintf("%02d:00:00", hour)
+    
+    # Calculate solar position
+    solar <- calculate_solar_position(
+      date = loc$date,
+      time = time_str,
+      latitude = 40.7128,
+      longitude = -74.0060
+    )
+    
+    # Extract projection
+    projection <- extract_projection_surface(model, solar)
+    
+    # Extract reflectance
+    reflectance <- extract_reflectance_surface(
+      projection, hyper_data, hyper_data$wavelengths
+    )
+    
+    # Get statistics
+    mean_refl <- get_mean_reflectance(
+      reflectance,
+      wavelengths = c(550, 850),
+      hyperspectral_wavelengths = hyper_data$wavelengths
+    )
+    
+    # Store results
+    results_df$elevation[i] <- solar$elevation
+    results_df$illuminated_area[i] <- projection$metadata$n_illuminated_faces
+    results_df$mean_reflectance_550[i] <- mean_refl$mean_reflectance[1]
+    results_df$mean_reflectance_850[i] <- mean_refl$mean_reflectance[2]
+  }
+  
+  results_list[[loc$name]] <- results_df
+}
+
+# Visualize results
+par(mfrow = c(2, 3))
+
+for (loc_name in names(results_list)) {
+  df <- results_list[[loc_name]]
+  
+  plot(df$elevation, df$mean_reflectance_550,
+       main = paste(loc_name, "- Green (550 nm)"),
+       xlab = "Solar Elevation (degrees)", ylab = "Mean Reflectance")
+  
+  plot(df$elevation, df$mean_reflectance_850,
+       main = paste(loc_name, "- NIR (850 nm)"),
+       xlab = "Solar Elevation (degrees)", ylab = "Mean Reflectance")
+}
+
+par(mfrow = c(1, 1))
+```
+
+### Key Insights
+- Reflectance varies significantly with solar angle
+- Summer solstice shows highest illumination
+- Different wavelengths respond differently to lighting changes
+
+---
+
+## Case Study 2: Multi-species Comparative Analysis
+
+Compare reflectance properties across multiple animal species to identify unique spectral signatures.
+
+### Problem
+Conservation researchers want to identify distinguishing spectral features of different species to develop automated detection systems.
+
+### Solution
+
+```r
+# Define species and their model/hyperspectral data
+species_data <- list(
+  list(
+    name = "Species_A",
+    model_file = "models/species_a.obj",
+    hyper_file = "images/species_a.spe"
+  ),
+  list(
+    name = "Species_B",
+    model_file = "models/species_b.obj",
+    hyper_file = "images/species_b.spe"
+  ),
+  list(
+    name = "Species_C",
+    model_file = "models/species_c.obj",
+    hyper_file = "images/species_c.spe"
+  )
+)
+
+# Define analysis wavelengths
+analysis_wavelengths <- seq(400, 2000, by = 100)
+
+# Storage for spectral signatures
+spectral_signatures <- list()
+
+# Process each species
+for (species in species_data) {
+  cat("Processing", species$name, "...\n")
+  
+  model <- load_obj_model(species$model_file)
+  hyper_data <- load_hyperspectral_spe(species$hyper_file)
+  
+  # Use consistent solar geometry
+  solar <- calculate_solar_position(
+    date = "2026-06-21",
+    time = "12:00:00",
+    latitude = 40.7128,
+    longitude = -74.0060
+  )
+  
+  # Extract projection and reflectance
+  projection <- extract_projection_surface(model, solar)
+  reflectance <- extract_reflectance_surface(
+    projection, hyper_data, hyper_data$wavelengths
+  )
+  
+  # Get mean reflectance across all wavelengths
+  refl_stats <- get_mean_reflectance(
+    reflectance,
+    wavelengths = analysis_wavelengths,
+    hyperspectral_wavelengths = hyper_data$wavelengths,
+    method = "mean"
+  )
+  
+  spectral_signatures[[species$name]] <- refl_stats
+}
+
+# Create comparison plot
+par(mfrow = c(1, 1))
+plot(NULL, xlim = c(400, 2000), ylim = c(0, 1),
+     xlab = "Wavelength (nm)", ylab = "Mean Reflectance",
+     main = "Spectral Signatures of Species")
+
+colors <- rainbow(length(spectral_signatures))
+for (i, species_name in enumerate(names(spectral_signatures))) {
+  df <- spectral_signatures[[species_name]]
+  lines(df$wavelength, df$mean_reflectance, 
+        col = colors[i], lwd = 2, label = species_name)
+}
+
+legend("topright", names(spectral_signatures), col = colors, lwd = 2)
+```
+
+---
+
+## Case Study 3: Batch Processing with Quality Control
+
+Process a large dataset with comprehensive quality control and error handling.
+
+### Problem
+A research team has 500 animal models and needs to process them systematically with detailed quality reporting.
+
+### Solution
+
+```r
+# Setup
+data_dir <- "research_data"
+models_dir <- file.path(data_dir, "obj_models")
+images_dir <- file.path(data_dir, "hyperspectral")
+output_dir <- file.path(data_dir, "results")
+log_file <- file.path(output_dir, "processing_log.txt")
+
+# Get file lists
+model_files <- list.files(models_dir, pattern = "\\.obj$", full.names = TRUE)
+hyper_files <- list.files(images_dir, pattern = "\\.spe$", full.names = TRUE)
+
+# Match files by basename
+matched_files <- data.frame(
+  model = character(),
+  hyper = character(),
+  stringsAsFactors = FALSE
+)
+
+for (model_f in model_files) {
+  base_name <- tools::file_path_sans_ext(basename(model_f))
+  hyper_f <- list.files(images_dir, pattern = base_name, full.names = TRUE)
+  
+  if (length(hyper_f) > 0) {
+    matched_files <- rbind(matched_files, 
+                          data.frame(model = model_f, hyper = hyper_f[1]))
+  }
+}
+
+cat("Found", nrow(matched_files), "matched model-hyperspectral pairs\n")
+
+# Process with batch function
+results <- batch_process_animals(
+  model_files = matched_files$model,
+  hyperspectral_files = matched_files$hyper,
+  date = "2026-06-01",
+  time = "12:00:00",
+  latitude = 40.7128,
+  longitude = -74.0060,
+  output_dir = output_dir,
+  export_projection = TRUE,
+  export_reflectance = TRUE,
+  wavelengths_extract = c(550, 850, 1650),
+  crs = "EPSG:4326",
+  verbose = TRUE
+)
+
+# Quality control checks
+cat("\n=== Quality Control Summary ===\n")
+cat("Total processed:", nrow(results), "\n")
+cat("Successful:", sum(results$status == "success"), "\n")
+cat("Failed:", sum(results$status != "success"), "\n")
+
+if (sum(results$status != "success") > 0) {
+  cat("\nFailed files:\n")
+  failed <- results[results$status != "success", ]
+  for (i in 1:nrow(failed)) {
+    cat(sprintf("  %s: %s\n", failed$model_file[i], failed$status[i]))
+  }
+}
+
+# Illumination statistics
+illumination <- results$n_illuminated_pixels
+cat("\nIllumination Statistics:\n")
+cat("  Mean illuminated pixels:", round(mean(illumination), 0), "\n")
+cat("  Median illuminated pixels:", round(median(illumination), 0), "\n")
+cat("  Range:", min(illumination), "-", max(illumination), "\n")
+
+# Create comprehensive report
+create_processing_report(results, output_file = log_file)
+
+# Generate summary statistics
+summary_stats <- data.frame(
+  total_files = nrow(results),
+  successful = sum(results$status == "success"),
+  failed = sum(results$status != "success"),
+  mean_illumination = mean(illumination),
+  median_illumination = median(illumination),
+  min_illumination = min(illumination),
+  max_illumination = max(illumination),
+  mean_processing_time = mean(results$processing_time),
+  total_processing_time = sum(results$processing_time)
+)
+
+write.csv(summary_stats, file.path(output_dir, "summary.csv"))
+```
+
+---
+
+## Performance Optimization Tips
+
+### 1. Memory-Efficient Processing
+
+```r
+# For very large datasets, process in chunks
+process_chunk <- function(model_files, chunk_size = 50) {
+  for (i in seq(1, length(model_files), by = chunk_size)) {
+    end_idx <- min(i + chunk_size - 1, length(model_files))
+    chunk <- model_files[i:end_idx]
+    
+    # Process chunk
+    # ... processing code ...
+    
+    # Force garbage collection
+    gc()
+  }
+}
+```
+
+### 2. Parallel Processing
+
+```r
+# Use parallel processing for independent models
+library(parallel)
+
+process_models_parallel <- function(model_files, n_cores = 4) {
+  cluster <- makeCluster(n_cores)
+  
+  results <- parLapply(cluster, model_files, function(model_f) {
+    library(animalreflect)
+    
+    model <- load_obj_model(model_f)
+    solar <- calculate_solar_position(
+      date = "2026-06-01", time = "12:00:00",
+      latitude = 40.7128, longitude = -74.0060
+    )
+    
+    projection <- extract_projection_surface(model, solar)
+    return(projection$metadata$n_illuminated_faces)
+  })
+  
+  stopCluster(cluster)
+  return(unlist(results))
+}
+
+illuminated_counts <- process_models_parallel(model_files, n_cores = 4)
+```
+
+### 3. Caching Results
+
+```r
+# Cache solar positions for same date/time
+solar_cache <- new.env()
+
+get_solar_cached <- function(date, time, latitude, longitude) {
+  key <- paste(date, time, latitude, longitude, sep = "_")
+  
+  if (!exists(key, envir = solar_cache)) {
+    solar_cache[[key]] <- calculate_solar_position(
+      date = date, time = time,
+      latitude = latitude, longitude = longitude
+    )
+  }
+  
+  return(solar_cache[[key]])
+}
+```
+
+---
+
+## Data Validation and Error Handling
+
+### Comprehensive Input Validation
+
+```r
+validate_workflow_inputs <- function(model_file, hyper_file) {
+  errors <- character()
+  warnings <- character()
+  
+  # Check files exist
+  if (!file.exists(model_file)) {
+    errors <- c(errors, paste("Model file not found:", model_file))
+  }
+  if (!file.exists(hyper_file)) {
+    errors <- c(errors, paste("Hyperspectral file not found:", hyper_file))
+  }
+  
+  # Check file extensions
+  if (!grepl("\\.obj$", model_file, ignore.case = TRUE)) {
+    warnings <- c(warnings, "Model file does not have .obj extension")
+  }
+  if (!grepl("\\.spe$", hyper_file, ignore.case = TRUE)) {
+    warnings <- c(warnings, "Hyperspectral file does not have .spe extension")
+  }
+  
+  # Check file sizes
+  if (file.size(model_file) > 500 * 1024 * 1024) {  # 500 MB
+    warnings <- c(warnings, "Model file is very large (>500MB)")
+  }
+  
+  return(list(errors = errors, warnings = warnings))
+}
+
+# Usage
+validation <- validate_workflow_inputs("model.obj", "image.spe")
+if (length(validation$errors) > 0) {
+  stop(paste(validation$errors, collapse = "\n"))
+}
+if (length(validation$warnings) > 0) {
+  warning(paste(validation$warnings, collapse = "\n"))
+}
+```
+
+---
+
+## Integration with Other R Packages
+
+### Integration with `terra` for Spatial Analysis
+
+```r
+library(animalreflect)
+library(terra)
+
+# Export projection and load with terra
+export_projection_tif(projection, "output.tif", crs = "EPSG:4326")
+raster_data <- rast("output.tif")
+
+# Perform spatial analysis
+raster_aggregated <- aggregate(raster_data, fact = 5)
+plot(raster_aggregated)
+```
+
+### Integration with `ggplot2` for Visualization
+
+```r
+library(animalreflect)
+library(ggplot2)
+
+# Convert results to data frame for ggplot
+reflectance_df <- data.frame(
+  wavelength = spectral_signatures$Species_A$wavelength,
+  reflectance = spectral_signatures$Species_A$mean_reflectance,
+  species = "Species A"
+)
+
+ggplot(reflectance_df, aes(x = wavelength, y = reflectance)) +
+  geom_line(color = "blue", size = 1) +
+  theme_minimal() +
+  labs(title = "Spectral Signature", x = "Wavelength (nm)", y = "Reflectance")
+```
+
+---
+
+## Troubleshooting Advanced Issues
+
+### Memory Issues with Large Datasets
+
+```r
+# Solution 1: Process in chunks
+chunk_process <- function(files, chunk_size = 10) {
+  for (i in seq(1, length(files), by = chunk_size)) {
+    chunk <- files[i:min(i + chunk_size - 1, length(files))]
+    process_chunk(chunk)
+    gc(verbose = FALSE)  # Force garbage collection
+  }
+}
+
+# Solution 2: Use temporary files
+use_temp_processing <- function(model, hyper_data) {
+  temp_file <- tempfile(fileext = ".rds")
+  saveRDS(model, temp_file)
+  
+  model_loaded <- readRDS(temp_file)
+  # Process model_loaded
+  
+  unlink(temp_file)  # Clean up
+}
+```
+
+### Handling Incomplete SPE Data
+
+```r
+# Check and validate hyperspectral data
+validate_hyperspectral <- function(hyper_data) {
+  issues <- character()
+  
+  if (is.null(hyper_data$data) || all(is.na(hyper_data$data))) {
+    issues <- c(issues, "Hyperspectral data is empty")
+  }
+  
+  if (is.null(hyper_data$wavelengths)) {
+    issues <- c(issues, "Wavelength information missing")
+  }
+  
+  if (any(is.infinite(hyper_data$data))) {
+    issues <- c(issues, "Data contains infinite values")
+  }
+  
+  return(issues)
+}
+```
+
+---
+
+## Further Resources
+
+- Consult the function documentation: `?function_name`
+- GitHub repository: https://github.com/mayinsitan1/animalreflect
+- Report issues or request features on GitHub
