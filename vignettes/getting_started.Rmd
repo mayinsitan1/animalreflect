@@ -1,0 +1,445 @@
+---
+title: "Getting Started with animalreflect"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with animalreflect}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Getting Started with animalreflect
+
+## Overview
+
+`animalreflect` is an R package that integrates 3D animal models with hyperspectral imaging data to extract projection surfaces and retrieve spectral reflectance information based on solar geometry.
+
+The package enables researchers to:
+- Load 3D animal models in OBJ format
+- Calculate accurate solar positions based on date, time, and location
+- Extract illuminated projection surfaces of 3D models
+- Map hyperspectral reflectance data to projected surfaces
+- Export results in GeoTIFF and CSV formats
+- Process multiple animals efficiently in batch mode
+
+## Installation
+
+```r
+# Install from GitHub
+devtools::install_github("mayinsitan1/animalreflect")
+```
+
+## Basic Workflow
+
+Here's a complete example of the typical animalreflect workflow:
+
+### 1. Load the Package
+
+```{r setup, eval=FALSE}
+library(animalreflect)
+```
+
+### 2. Load 3D Animal Model
+
+```r
+# Load a 3D model in OBJ format
+model <- load_obj_model("path/to/animal.obj")
+
+# View model information
+print(model)
+```
+
+The `obj_model` object contains:
+- **vertices**: Matrix of 3D coordinates (x, y, z)
+- **faces**: Triangle connectivity information
+- **normals**: Optional vertex normals for improved calculations
+- **n_vertices**: Number of vertices
+- **n_faces**: Number of triangular faces
+
+### 3. Calculate Solar Position
+
+Calculate the sun's azimuth and elevation for a specific date, time, and location:
+
+```r
+# Solar position at noon on June 1, 2026 in New York
+solar <- calculate_solar_position(
+  date = "2026-06-01",
+  time = "12:00:00",
+  latitude = 40.7128,
+  longitude = -74.0060,
+  timezone = "America/New_York"
+)
+
+print(solar)
+```
+
+The solar position object contains:
+- **azimuth**: Solar direction (0° = North, 90° = East, 180° = South, 270° = West)
+- **elevation**: Sun angle above horizon (0° = horizon, 90° = zenith)
+- **zenith**: Zenith angle (90° - elevation)
+- **solar_vector**: Unit vector pointing toward the sun
+
+### 4. Extract Projection Surface
+
+Extract the illuminated projection surface of the model:
+
+```r
+projection <- extract_projection_surface(
+  model = model,
+  solar_position = solar
+)
+
+print(projection)
+plot(projection)
+```
+
+The projection surface shows which faces of the 3D model are illuminated by the sun.
+
+### 5. Load Hyperspectral Data
+
+```r
+# Load hyperspectral image in SPE format
+hyperspectral_data <- load_hyperspectral_spe("path/to/image.spe")
+
+print(hyperspectral_data)
+```
+
+SPE files should contain:
+- 3D array: X pixels × Y pixels × Wavelength bands
+- Wavelength vector: Typical range 300-2100 nm
+- Metadata: Including spatial resolution information
+
+### 6. Extract Reflectance from Projection
+
+Map the hyperspectral data to the projected surface:
+
+```r
+reflectance <- extract_reflectance_surface(
+  projection = projection,
+  hyperspectral_data = hyperspectral_data,
+  wavelengths = hyperspectral_data$wavelengths,
+  interpolation_method = "nearest"
+)
+
+print(reflectance)
+```
+
+### 7. Calculate Mean Reflectance at Specific Wavelengths
+
+Extract spectral statistics at wavelengths of interest:
+
+```r
+# Common remote sensing wavelengths:
+# 550 nm = Green
+# 850 nm = NIR
+# 1650 nm = SWIR
+
+mean_reflectance <- get_mean_reflectance(
+  reflectance_data = reflectance,
+  wavelengths = c(550, 850, 1650),
+  hyperspectral_wavelengths = hyperspectral_data$wavelengths,
+  method = "mean"
+)
+
+print(mean_reflectance)
+```
+
+### 8. Export Results
+
+```r
+# Export projection surface as GeoTIFF
+export_projection_tif(
+  projection = projection,
+  output_file = "projection_output.tif",
+  crs = "EPSG:4326"
+)
+
+# Export reflectance data (multi-band GeoTIFF)
+export_reflectance_tif(
+  reflectance_data = reflectance,
+  output_file = "reflectance_output.tif",
+  wavelengths = c(550, 850, 1650),
+  crs = "EPSG:4326"
+)
+
+# Export statistics to CSV
+export_reflectance_csv(
+  reflectance_stats = mean_reflectance,
+  output_file = "reflectance_stats.csv",
+  metadata = list(
+    date = "2026-06-01",
+    location = "New York",
+    model = "animal.obj"
+  )
+)
+```
+
+## Advanced Features
+
+### Batch Processing Multiple Models
+
+Process multiple animal models with consistent solar geometry:
+
+```r
+# Get lists of model and hyperspectral files
+model_files <- list.files("data/models", pattern = "\\.obj$", full.names = TRUE)
+hyper_files <- list.files("data/images", pattern = "\\.spe$", full.names = TRUE)
+
+# Process all models
+results <- batch_process_animals(
+  model_files = model_files,
+  hyperspectral_files = hyper_files,
+  date = "2026-06-01",
+  time = "12:00:00",
+  latitude = 40.7128,
+  longitude = -74.0060,
+  output_dir = "results",
+  export_projection = TRUE,
+  export_reflectance = TRUE,
+  wavelengths_extract = c(550, 850, 1650),
+  crs = "EPSG:4326",
+  verbose = TRUE
+)
+
+# View results summary
+print(results)
+
+# Create a detailed report
+create_processing_report(results, output_file = "results/report.txt")
+```
+
+### Time Series Analysis
+
+Analyze how illumination changes throughout the day:
+
+```r
+times <- c("06:00:00", "09:00:00", "12:00:00", "15:00:00", "18:00:00")
+projections_list <- list()
+
+for (time in times) {
+  solar <- calculate_solar_position(
+    date = "2026-06-01",
+    time = time,
+    latitude = 40.7128,
+    longitude = -74.0060
+  )
+  
+  proj <- extract_projection_surface(model, solar)
+  projections_list[[time]] <- proj
+  
+  illuminated_ratio <- proj$metadata$n_illuminated_faces / 
+                       proj$metadata$n_total_faces
+  
+  cat(sprintf("%s: %6.2f%% illuminated\n", time, illuminated_ratio * 100))
+}
+```
+
+### Using Different Interpolation Methods
+
+When extracting reflectance data, choose between interpolation methods:
+
+```r
+# Nearest neighbor (faster, preserves original values)
+reflectance_nearest <- extract_reflectance_surface(
+  projection = projection,
+  hyperspectral_data = hyperspectral_data,
+  wavelengths = hyperspectral_data$wavelengths,
+  interpolation_method = "nearest"
+)
+
+# Bilinear interpolation (smoother transitions)
+reflectance_bilinear <- extract_reflectance_surface(
+  projection = projection,
+  hyperspectral_data = hyperspectral_data,
+  wavelengths = hyperspectral_data$wavelengths,
+  interpolation_method = "bilinear"
+)
+```
+
+## Data Format Requirements
+
+### OBJ Model Format
+
+- Standard Wavefront OBJ format (.obj files)
+- Can include vertex normals for improved calculations
+- Should contain closed surface geometry
+- Supports triangulated faces
+
+Example OBJ structure:
+```
+v -1 -1 -1      # Vertex coordinates
+v  1 -1 -1
+vn 0 0 1         # Vertex normals (optional)
+f 1 2 3          # Face definitions (vertex indices)
+```
+
+### SPE Hyperspectral Format
+
+- Binary format from Princeton Instruments spectrometers
+- 3D array: X pixels (spatial) × Y pixels (spatial) × Bands (spectral)
+- Typical wavelength range: 300-2100 nm
+- Spatial resolution: typically < 1 mm
+- Metadata should include wavelength information
+
+### Output Formats
+
+- **Projection (GeoTIFF)**: Single-band binary raster with spatial referencing
+- **Reflectance (GeoTIFF)**: Multi-band raster with one band per wavelength
+- **Statistics (CSV)**: Tabular data with mean reflectance and statistics
+
+## Common Workflows
+
+### Workflow 1: Compare Reflectance Across Different Locations
+
+```r
+locations <- list(
+  list(lat = 40.7128, lon = -74.0060, name = "New York"),
+  list(lat = -33.8688, lon = 151.2093, name = "Sydney"),
+  list(lat = 51.5074, lon = -0.1278, name = "London")
+)
+
+for (loc in locations) {
+  solar <- calculate_solar_position(
+    date = "2026-06-01",
+    time = "12:00:00",
+    latitude = loc$lat,
+    longitude = loc$lon
+  )
+  
+  projection <- extract_projection_surface(model, solar)
+  reflectance <- extract_reflectance_surface(projection, hyper_data, 
+                                            hyper_data$wavelengths)
+  
+  mean_refl <- get_mean_reflectance(reflectance, c(550, 850, 1650))
+  
+  cat("\n", loc$name, ":\n")
+  print(mean_refl)
+}
+```
+
+### Workflow 2: Multi-temporal Analysis
+
+```r
+dates <- c("2026-03-01", "2026-06-01", "2026-09-01", "2026-12-01")
+
+for (date in dates) {
+  solar <- calculate_solar_position(
+    date = date,
+    time = "12:00:00",
+    latitude = 40.7128,
+    longitude = -74.0060
+  )
+  
+  projection <- extract_projection_surface(model, solar)
+  
+  illuminated_pct <- 100 * projection$metadata$n_illuminated_faces / 
+                     projection$metadata$n_total_faces
+  
+  cat(sprintf("%s: %6.2f%% illuminated\n", date, illuminated_pct))
+}
+```
+
+### Workflow 3: Material Classification
+
+```r
+# Extract reflectance for material identification
+reflectance_data <- extract_reflectance_surface(
+  projection, hyperspectral_data, 
+  hyperspectral_data$wavelengths
+)
+
+# Calculate spectral indices
+ndvi <- (reflectance_data$spectral_cube[, , 70] - 
+         reflectance_data$spectral_cube[, , 30]) / 
+        (reflectance_data$spectral_cube[, , 70] + 
+         reflectance_data$spectral_cube[, , 30])
+
+# Visualize
+image(ndvi, main = "NDVI (Vegetation Index)")
+```
+
+## Tips and Best Practices
+
+1. **Solar Angles**: 
+   - Ensure date, time, and timezone are correctly specified
+   - Negative elevation angles indicate sun below horizon
+   - Use noon for maximum illumination
+
+2. **File Paths**: 
+   - Use full paths for model and hyperspectral files
+   - Ensure output directory exists or use auto-create option
+
+3. **Wavelength Selection**:
+   - Common bands: 550nm (Green), 850nm (NIR), 1650nm (SWIR)
+   - Check available wavelengths in hyperspectral data
+   - Use 5nm tolerance for wavelength matching
+
+4. **Memory Efficiency**:
+   - For large hyperspectral datasets, use batch processing
+   - Consider reducing raster resolution for initial analysis
+   - Use bilinear interpolation only when needed
+
+5. **Output Files**:
+   - Always specify output directory to organize results
+   - Use descriptive filenames with date/location information
+   - Set appropriate CRS (coordinate reference system) for spatial accuracy
+
+## Troubleshooting
+
+### Issue: "OBJ file not found"
+- Check file path is correct
+- Verify file exists and is readable
+- Use absolute path instead of relative path
+
+### Issue: "No vertices found in OBJ file"
+- Ensure OBJ file is properly formatted
+- Check that vertices are defined with 'v' prefix
+- Verify file is not corrupted
+
+### Issue: "SPE file parsing requires proper SPE format documentation"
+- Use actual SPE files from instruments
+- Create mock SPE objects for testing
+- Check file format matches Princeton Instruments standard
+
+### Issue: "Sun is below the horizon"
+- This is expected for certain times/locations
+- Consider sunrise/sunset times for your location
+- Use solar position calculation to check elevation angle
+
+## Performance Considerations
+
+- **Model Size**: Functions handle models with thousands of vertices efficiently
+- **Batch Processing**: Can process 100+ models in reasonable time with verbose progress
+- **Memory**: Hyperspectral data scales with number of wavelength bands
+- **Resolution**: Raster resolution (default 100×100) affects computation time
+
+## References
+
+1. Reda, I., & Andreas, A. (2008). Solar position algorithm for solar radiation applications. *National Renewable Energy Laboratory (NREL)*
+
+2. Hagen, N., & Kudenov, M. W. (2013). Review of snapshot spectral imaging technologies. *Optical Engineering*, 52(9), 090901
+
+3. Wavefront OBJ Format: https://en.wikipedia.org/wiki/Wavefront_.obj_file
+
+## Getting Help
+
+For issues, feature requests, or questions:
+- Visit the [GitHub repository](https://github.com/mayinsitan1/animalreflect)
+- Report issues on the [Issues page](https://github.com/mayinsitan1/animalreflect/issues)
+- Check the function documentation: `?function_name`
+
+## See Also
+
+- `load_obj_model()` - Load 3D models
+- `calculate_solar_position()` - Calculate solar angles
+- `extract_projection_surface()` - Extract illuminated surfaces
+- `extract_reflectance_surface()` - Map spectral data
+- `batch_process_animals()` - Process multiple models
