@@ -14,22 +14,9 @@ RoxygenNote: 7.2.3
 Depends:
     R (>= 4.1)
 Imports:
-    rgl,
     Rcpp,
-    geometry,
-    raster,
     terra,
-    sf,
-    EBImage,
-    R.matlab,
-    lpSolve,
-    sp,
-    methods,
-    utils,
-    graphics,
-    stats,
-    lubridate,
-    maptools
+    lubridate
 LinkingTo:
     Rcpp,
     RcppArmadillo
