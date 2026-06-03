@@ -39,15 +39,9 @@
 #' @section Getting Started:
 #' See the README and vignettes for detailed examples and workflows.
 #'
-#' @importFrom rgl open3d close3d plot3d
 #' @importFrom Rcpp sourceCpp
-#' @importFrom geometry convhulln delaunayn
-#' @importFrom raster raster brick
 #' @importFrom terra rast writeRaster crs ext
-#' @importFrom sf st_as_sf st_bbox
-#' @importFrom EBImage readImage
 #' @importFrom lubridate ymd_hms as_datetime with_tz hour minute second
-#' @importFrom maptools ptsInPoly
 #'
 "_PACKAGE"
 
