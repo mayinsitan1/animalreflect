@@ -18,7 +18,6 @@ export(plot.projection_surface)
 export(print.reflectance_surface)
 export(print.solar_position)
 
-importFrom(Rcpp,sourceCpp)
 importFrom(terra,rast)
 importFrom(terra,writeRaster)
 importFrom(terra,crs)
@@ -29,5 +28,3 @@ importFrom(lubridate,with_tz)
 importFrom(lubridate,hour)
 importFrom(lubridate,minute)
 importFrom(lubridate,second)
-
-useDynLib(animalreflect, .registration = TRUE)
