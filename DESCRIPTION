@@ -14,12 +14,8 @@ RoxygenNote: 7.2.3
 Depends:
     R (>= 4.1)
 Imports:
-    Rcpp,
     terra,
     lubridate
-LinkingTo:
-    Rcpp,
-    RcppArmadillo
 Suggests:
     testthat (>= 3.0.0),
     knitr,
